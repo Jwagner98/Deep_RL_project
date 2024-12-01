@@ -349,8 +349,8 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_RANDOM_TRAINING_STEPS = 10
-NB_ADV_TRAINING_STEPS = 10
+NB_RANDOM_TRAINING_STEPS = 20_000
+NB_ADV_TRAINING_STEPS = 5_000
 TEST_EPISODES = 100
 LADDER_EPISODES = 500
 # Training functions
@@ -444,15 +444,18 @@ def evaluate_policy(model):
 
     env_player.reset_battles()
     obs, _ = env_player.reset()
+    obs, reward, done, _, info = env_player.step(0)
+
     while True:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = env_player.step(action)
 
         if done:
             finished_episodes += 1
+            obs, _ = env_player.reset()
+
             if finished_episodes >= TEST_EPISODES:
                 break
-            obs, _ = env_player.reset()
     results[type(opponent).__name__] = env_player.n_won_battles
 
     print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
@@ -460,7 +463,6 @@ def evaluate_policy(model):
     finished_episodes = 0
     env_player._opponent = second_opponent
 
-    env_player.reset_battles()
     obs, _ = env_player.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
@@ -478,7 +480,6 @@ def evaluate_policy(model):
     finished_episodes = 0
     env_player._opponent = third_op
 
-    env_player.reset_battles()
     obs, _ = env_player.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
@@ -549,7 +550,65 @@ async def dqnladder():
 
 if __name__ == "__main__":
     a2c_training()
-    a2c_evaluation()
+    model = model_store['a2c']
+
+    opponent = RandomPlayer()
+    second_opponent = MaxDamagePlayer()
+    third_opponent = SimpleHeuristicsPlayer()
+    env_player = Agent(opponent=opponent)
+    obs, reward, done, _, info = env_player.step(0)
+    while not done:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env_player.step(action)
+
+    finished_episodes = 0
+
+    env_player.reset_battles()
+    obs, _ = env_player.reset()
+    while True:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env_player.step(action)
+
+        if done:
+            finished_episodes += 1
+            obs, _ = env_player.reset()
+            if finished_episodes >= TEST_EPISODES:
+
+                break
+
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
+
+    finished_episodes = 0
+    env_player._opponent = second_opponent
+
+    obs, _ = env_player.reset()
+    while True:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env_player.step(action)
+
+        if done:
+            finished_episodes += 1
+            obs, _ = env_player.reset()
+            if finished_episodes >= TEST_EPISODES:
+                break
+
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
+    finished_episodes = 0
+    env_player._opponent = third_opponent
+
+    obs, _ = env_player.reset()
+    while True:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env_player.step(action)
+
+        if done:
+            finished_episodes += 1
+            obs, _ = env_player.reset()
+            if finished_episodes >= TEST_EPISODES:
+                break
+
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
+    #a2c_evaluation()
 
     #dqn_training()
     #dqn_evaluation()
