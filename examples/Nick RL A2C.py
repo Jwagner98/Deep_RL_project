@@ -1,20 +1,15 @@
 import numpy as np
-import asyncio
-from stable_baselines3 import A2C,DQN
+from stable_baselines3 import A2C
 from gymnasium.spaces import Box
 from poke_env.data import GenData
 
 from poke_env.environment import SideCondition
 from poke_env.player import Gen9EnvSinglePlayer, RandomPlayer,SimpleHeuristicsPlayer
 
-from poke_env import AccountConfiguration, ShowdownServerConfiguration
-
-import klefki
-
 MAX_TURNS = 255
 # We define our RL player
 # It needs a state embedder and a reward computer, hence these two methods
-class Agent(Gen9EnvSinglePlayer):
+class SimpleRLPlayer(Gen9EnvSinglePlayer):
     def embed_battle(self, battle):
         # -1 indicates that the move does not have a base power
         # or is not available
@@ -125,7 +120,7 @@ class Agent(Gen9EnvSinglePlayer):
     def calc_reward(self, last_state, current_state) -> float:
         return self.reward_computing_helper(
             current_state, fainted_value=2, hp_value=1, victory_value=30
-        )+25/current_state.turn
+        )+10/current_state.turn
     
     def describe_embedding(self):
         low = np.concatenate([[-1]*4, [0]*4, [0]*2, [0]*6, [0]*6, [0]*2, [-6]*7, [-6]*7, [0]*11, [0]*11, [0]*13, [0]*9, [0]])
@@ -150,122 +145,84 @@ class MaxDamagePlayer(RandomPlayer):
             return self.choose_random_move(battle)
 
 
+NB_EVALUATION_EPISODES = 100
+
 np.random.seed(0)
+
 
 model_store = {}
 
-GEN_9_DATA = GenData.from_gen(9)
+# This is the function that will be used to train the a2c
+def a2c_training(player, nb_steps):
+    model = A2C("MlpPolicy", player, verbose=1)
+    model.learn(total_timesteps=10_000)
+    model_store[player] = model
+    
+
+
+def a2c_evaluation(player, nb_episodes):
+    # Reset battle statistics
+    model = model_store[player]
+    player.reset_battles()
+    model.test(player, nb_episodes=nb_episodes, visualize=False, verbose=False)
+
+    print(
+        "A2C Evaluation: %d victories out of %d episodes"
+        % (player.n_won_battles, nb_episodes)
+    )
+
+
 NB_TRAINING_STEPS = 10_000
-NB_EVALUATION_EPISODES = 100
 TEST_EPISODES = 100
-LADDER_EPISODES = 100
-# Training functions
-def a2c_training():
-    opponent = RandomPlayer()
-    second_opponent = MaxDamagePlayer()
-    third_opponent = SimpleHeuristicsPlayer()
-    env_player = Agent(opponent=opponent)
+GEN_9_DATA = GenData.from_gen(9)
 
+if __name__ == "__main__":
+    
+    opponent = RandomPlayer()
+    env_player = SimpleRLPlayer(opponent=opponent)
+    second_opponent = MaxDamagePlayer()
+    third_op=SimpleHeuristicsPlayer()
     model = A2C("MlpPolicy", env_player, verbose=1)
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
+    model.learn(NB_TRAINING_STEPS)
     model.env._opponent=second_opponent
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=third_opponent
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
+    model.learn(NB_TRAINING_STEPS)
+    model.env._opponent=third_op
+    model.learn(NB_TRAINING_STEPS)
+    
+    obs, reward, done, _, info = env_player.step(0)
+    while not done:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env_player.step(action)
 
-    model_store['a2c'] = model
-
-def dqn_training():
-    opponent = RandomPlayer()
-    second_opponent = MaxDamagePlayer()
-    third_opponent = SimpleHeuristicsPlayer()
-    env_player = Agent(opponent=opponent)
-
-    model = DQN("MlpPolicy", env_player, verbose=1)
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=second_opponent
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=third_opponent
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-
-    model_store['dqn'] = model
-
-# evaluation runner
-def evaluate_policy(model):
     finished_episodes = 0
 
-    model.env.reset_battles()
-    obs, _ = model.env.reset()
+    env_player.reset_battles()
+    obs, _ = env_player.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = model.env.step(action)
+        obs, reward, done, _, info = env_player.step(action)
 
         if done:
             finished_episodes += 1
             if finished_episodes >= TEST_EPISODES:
                 break
-            obs, _ = model.env.reset()
+            obs, _ = env_player.reset()
 
-    print("Won", model.env.n_won_battles, "battles against", model.env._opponent)
-# evaluation functions
-def a2c_evaluation():
-    # Reset battle statistics
-    model = model_store['a2c']
-    model.env.reset_battles()
-    evaluate_policy(model)
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 
-    print(
-        "A2C Evaluation: %d victories out of %d episodes"
-        % (model.env.n_won_battles, TEST_EPISODES)
-    )
+    finished_episodes = 0
+    env_player._opponent = second_opponent
 
-def dqn_evaluation():
-    # Reset battle statistics
-    model = model_store['dqn']
-    model.env.reset_battles()
-    evaluate_policy(model)
+    env_player.reset_battles()
+    obs, _ = env_player.reset()
+    while True:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env_player.step(action)
 
-    print(
-        "DQN Evaluation: %d victories out of %d episodes"
-        % (model.env.n_won_battles, TEST_EPISODES)
-    )
+        if done:
+            finished_episodes += 1
+            obs, _ = env_player.reset()
+            if finished_episodes >= TEST_EPISODES:
+                break
 
-# play online
-async def a2cladder():
-    # We create a random player
-    model = model_store["a2c"]
-    player = Agent(
-        player_configuration=AccountConfiguration(username=klefki.a2cuser, password=klefki.password),
-        server_configuration=ShowdownServerConfiguration,
-    )
-
-    model.env = player
-    await model.env.ladder(LADDER_EPISODES)
-
-    # Print the rating of the player and its opponent after each battle
-    for battle in player.battles.values():
-        print(battle.rating, battle.opponent_rating)
-
-async def dqnladder():
-    # We create a random player
-    model = model_store["dqn"]
-    player = Agent(
-        player_configuration=AccountConfiguration(username=klefki.dqnuser, password=klefki.password),
-        server_configuration=ShowdownServerConfiguration,
-    )
-
-    model.env = player
-    await model.env.ladder(LADDER_EPISODES)
-
-    # Print the rating of the player and its opponent after each battle
-    for battle in player.battles.values():
-        print(battle.rating, battle.opponent_rating)
-
-
-if __name__ == "__main__":
-    a2c_training()
-    a2c_evaluation()
-
-    asyncio.get_event_loop().run_until_complete(a2cladder())
-    
-    
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
