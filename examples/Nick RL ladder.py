@@ -161,9 +161,9 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_TRAINING_STEPS = 55
-TEST_EPISODES = 5
-LADDER_EPISODES = 5
+NB_TRAINING_STEPS = 1_000
+TEST_EPISODES = 50
+LADDER_EPISODES = 50
 # Training functions
 def a2c_training():
     opponent = RandomPlayer(battle_format='gen9randombattle')
@@ -201,35 +201,39 @@ def dqn_training():
 
 # evaluation runner
 def evaluate_policy(model):
-    opponent = RandomPlayer(battle_format='gen9randombattle')
-    second_opponent = MaxDamagePlayer(battle_format='gen9randombattle')
-    third_opponent = SimpleHeuristicsPlayer(battle_format='gen9randombattle')
-    env_player = Agent(opponent=opponent)
-    finished_episodes = 0
-    model.set_env(env_player)
-    obs, reward, done, _, info = env_player.step(0)
-    while True:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, _ = model.env.step(action)
+    opponents = [
+        RandomPlayer(battle_format='gen9randombattle'),
+        MaxDamagePlayer(battle_format='gen9randombattle'),
+        SimpleHeuristicsPlayer(battle_format='gen9randombattle'),
+    ]
+    results = {}
+    for opponent in opponents:
+        env_player = Agent(opponent=opponent)
+        env_player.reset_battles()
+        model.set_env(env_player)
 
-        if done:
-            finished_episodes += 1
-            if finished_episodes >= TEST_EPISODES:
-                break
-            env_player.reset()
-            obs, reward, done, _, info = env_player.step(0)
+        finished_episodes = 0
+        obs, _ = env_player.reset()
 
-    print("Won", model.env.n_won_battles, "battles against", model.env._opponent)
+        while finished_episodes < TEST_EPISODES:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, _, _ = env_player.step(action)
+
+            if done:
+                finished_episodes += 1
+                if finished_episodes < TEST_EPISODES:
+                    obs, _ = env_player.reset()
+        results[type(opponent).__name__] = env_player.n_won_battles
+        print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 # evaluation functions
 def a2c_evaluation():
     # Reset battle statistics
     model = model_store['a2c']
-    evaluate_policy(model)
-
-    print(
-        "A2C Evaluation: %d victories out of %d episodes"
-        % (model.env.n_won_battles, TEST_EPISODES)
-    )
+    results = evaluate_policy(model)
+    if results is not None:
+        print('A2C Evaluation Results:')
+        for opponent, victories in results.items():
+            print(f'{opponent}: {victories}/{TEST_EPISODES} wins')
 
 def dqn_evaluation():
     # Reset battle statistics
