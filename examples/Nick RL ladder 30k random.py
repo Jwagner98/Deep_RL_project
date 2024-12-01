@@ -201,7 +201,7 @@ def a2c_training():
     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
 
     # Create the model
-    model = A2C("MlpPolicy", env_player, verbose=1)
+    model = DQN("MlpPolicy", env_player, verbose=1)
     model.learn(total_timesteps=NB_TRAINING_STEPS)  # Train model
 
     # Train against each opponent sequentially
@@ -259,7 +259,8 @@ def evaluate_policy(model):
             if done:
                 finished_episodes += 1
                 if finished_episodes < TEST_EPISODES:
-                    obs, _ = env_player.reset()
+                    break
+                obs, _ = env_player.reset()
         results[type(opponent).__name__] = env_player.n_won_battles
         print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 # evaluation functions
@@ -320,6 +321,6 @@ if __name__ == "__main__":
     a2c_training()
     a2c_evaluation()
 
-    asyncio.get_event_loop().run_until_complete(a2cladder())
+    #asyncio.get_event_loop().run_until_complete(a2cladder())
     
     
