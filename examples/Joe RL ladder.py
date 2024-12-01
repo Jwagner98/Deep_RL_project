@@ -427,81 +427,72 @@ def dqn_training():
 
 # evaluation runner
 def evaluate_policy(model):
-    opponents = [
-        RandomPlayer(),
-        MaxDamagePlayer(battle_format='gen9randombattle'),
-        SimpleHeuristicsPlayer(battle_format='gen9randombattle'),
-    ]
-    results = {}
-    env_player = Agent(opponent=opponents[0])
-    env_player.reset()
-    env_player.reset_battles()
 
+    opponent = RandomPlayer()
+    env_player = Agent(opponent=opponent)
+    second_opponent = MaxDamagePlayer()
+    third_op=SimpleHeuristicsPlayer()
+    results = {}
+
+    
     obs, reward, done, _, info = env_player.step(0)
     while not done:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = env_player.step(action)
+
     finished_episodes = 0
 
     env_player.reset_battles()
     obs, _ = env_player.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
-        
-        obs, reward, done, _, _ = env_player.step(action)
+        obs, reward, done, _, info = env_player.step(action)
 
         if done:
             finished_episodes += 1
             if finished_episodes >= TEST_EPISODES:
                 break
             obs, _ = env_player.reset()
+    results[type(opponent).__name__] = env_player.n_won_battles
 
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 
-        results[type(opponents[0]).__name__] = env_player.n_won_battles
-        print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
-    env_player = Agent(opponent=opponents[1])
-    env_player.reset()
-    env_player.reset_battles()
     finished_episodes = 0
+    env_player._opponent = second_opponent
 
     env_player.reset_battles()
     obs, _ = env_player.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
-        
-        obs, reward, done, _, _ = env_player.step(action)
+        obs, reward, done, _, info = env_player.step(action)
 
         if done:
             finished_episodes += 1
+            obs, _ = env_player.reset()
             if finished_episodes >= TEST_EPISODES:
                 break
-            obs, _ = env_player.reset()
+    results[type(second_opponent).__name__] = env_player.n_won_battles
+     
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 
-
-        results[type(opponents[1]).__name__] = env_player.n_won_battles
-        print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
-    env_player = Agent(opponent=opponents[2])
-    env_player.reset()
-    env_player.reset_battles()
     finished_episodes = 0
+    env_player._opponent = third_op
 
     env_player.reset_battles()
     obs, _ = env_player.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
-        
-        obs, reward, done, _, _ = env_player.step(action)
+        obs, reward, done, _, info = env_player.step(action)
 
         if done:
             finished_episodes += 1
+            obs, _ = env_player.reset()
             if finished_episodes >= TEST_EPISODES:
                 break
-            obs, _ = env_player.reset()
+    results[type(third_op).__name__] = env_player.n_won_battles
 
+    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 
-        results[type(opponents[2]).__name__] = env_player.n_won_battles
-        print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
-# evaluation functions
 def a2c_evaluation():
     # Reset battle statistics
     model = model_store['a2c']
