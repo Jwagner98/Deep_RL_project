@@ -201,9 +201,13 @@ def dqn_training():
 
 # evaluation runner
 def evaluate_policy(model):
+    opponent = RandomPlayer(battle_format='gen9randombattle')
+    second_opponent = MaxDamagePlayer(battle_format='gen9randombattle')
+    third_opponent = SimpleHeuristicsPlayer(battle_format='gen9randombattle')
+    env_player = Agent(opponent=opponent)
     finished_episodes = 0
-    model.env.reset_battles()
-    obs, _ = model.env.reset()
+    model.set_env(env_player)
+    obs, reward, done, _, info = env_player.step(0)
     while True:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, _ = model.env.step(action)
@@ -212,7 +216,8 @@ def evaluate_policy(model):
             finished_episodes += 1
             if finished_episodes >= TEST_EPISODES:
                 break
-            obs, _ = model.env.reset()
+            env_player.reset()
+            obs, reward, done, _, info = env_player.step(0)
 
     print("Won", model.env.n_won_battles, "battles against", model.env._opponent)
 # evaluation functions
@@ -272,7 +277,7 @@ async def dqnladder():
 
 if __name__ == "__main__":
     a2c_training()
-    # a2c_evaluation()
+    a2c_evaluation()
 
     # asyncio.get_event_loop().run_until_complete(a2cladder())
     
