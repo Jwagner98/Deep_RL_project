@@ -2,6 +2,8 @@ import numpy as np
 from stable_baselines3 import A2C
 from gymnasium.spaces import Box
 from poke_env.data import GenData
+import gymnasium as gym
+from stable_baselines3.common.env_checker import check_env
 
 from poke_env.environment import SideCondition
 from poke_env.player import Gen9EnvSinglePlayer, RandomPlayer,SimpleHeuristicsPlayer
@@ -126,9 +128,9 @@ class SimpleRLPlayer(Gen9EnvSinglePlayer):
         low = np.concatenate([[-1]*4, [0]*4, [0]*2, [0]*6, [0]*6, [0]*2, [-6]*7, [-6]*7, [0]*11, [0]*11, [0]*13, [0]*9, [0]])
         high = np.concatenate([[3]*4, [4]*4, [1]*2, [1]*6, [1]*6, [1]*2, [6]*7, [6]*7, [MAX_TURNS]*11, [MAX_TURNS]*11, [MAX_TURNS]*13, [MAX_TURNS]*9, [MAX_TURNS]])
         return Box(
-            np.array(low, dtype=np.float32),
-            np.array(high, dtype=np.float32),
-            dtype=np.float32,
+            np.array(low, dtype=np.float64),
+            np.array(high, dtype=np.float64),
+            dtype=np.float64,
         )
     def choose_move(self, battle):
         # If the player can attack, it will
@@ -152,19 +154,6 @@ class MaxDamagePlayer(RandomPlayer):
         # If no attack is available, a random switch will be made
         else:
             return self.choose_random_move(battle)
-
-class A2Cplayer(RandomPlayer):
-
-    while True:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env_player.step(action)
-
-        if done:
-            finished_episodes += 1
-            if finished_episodes >= TEST_EPISODES:
-                break
-            obs, _ = env_player.reset()
-    return action
 
 NB_EVALUATION_EPISODES = 100
 
@@ -193,7 +182,7 @@ def a2c_evaluation(player, nb_episodes):
     )
 
 
-NB_TRAINING_STEPS = 10_000
+NB_TRAINING_STEPS = 10
 TEST_EPISODES = 100
 GEN_9_DATA = GenData.from_gen(9)
 
@@ -202,6 +191,21 @@ if __name__ == "__main__":
     env_player = SimpleRLPlayer(opponent=opponent)
     second_opponent = MaxDamagePlayer()
     third_op=SimpleHeuristicsPlayer()
+    check_env(env_player)
+    
+    model = A2C("MlpPolicy", env_player, verbose=1)
+    model.learn(total_timesteps=10)
+    from stable_baselines3.common.env_checker import check_env
+    # It will check your custom environment and output additional warnings if needed
+    vec_env = model.get_env()
+    obs = vec_env.reset()
+    for i in range(1000):
+        action, _state = model.predict(obs, deterministic=True)
+        obs, reward, done, info = vec_env.step(action)
+        # VecEnv resets automatically
+        # if done:
+        #   obs = vec_env.reset()
+    print('fuck fuck fuck')
     a2c_training(env_player,NB_TRAINING_STEPS)
     a2c_evaluation(env_player,TEST_EPISODES)
     model_store[env_player].env._opponent=second_opponent
@@ -213,7 +217,7 @@ if __name__ == "__main__":
     a2c_training(env_player,NB_TRAINING_STEPS)
     a2c_evaluation(env_player,TEST_EPISODES)
     obs, reward, done, _, info = env_player.step(0)
-
+    model=model_store[env_player]
     while not done:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = env_player.step(action)
@@ -232,59 +236,4 @@ if __name__ == "__main__":
                 break
             obs, _ = env_player.reset()
 
-    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
-
-    finished_episodes = 0
-
-    env_player.reset_env(restart=True, opponent=MaxDamagePlayer())
-
-    while True:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env_player.step(action)
-
-        if done:
-            finished_episodes += 1
-            obs, _ = env_player.reset()
-            if finished_episodes >= TEST_EPISODES:
-                break
-
-        player = env_player.agent
-        #SimpleRLPlayer(player_configuration=AccountConfiguration("Agent_ego", "RLclass") server_configuration=ShowdownServerConfiguration,)
-        # Sending challenges to 'your_username'
-        #await player.send_challenges("your_username", n_challenges=1)
-
-        # Accepting one challenge from any user
-        #await player.accept_challenges(None, 1)
-
-        # Accepting three challenges from 'your_username'
-        #await player.accept_challenges('your_username', 3)
-
-        # Playing 5 games on the ladder
-        
-        await player.ladder(5)
-    async def main():
-        # We create a random player
-        player = SimpleRLPlayer(
-            player_configuration=AccountConfiguration("Agent_ego", "RLclass")
-            server_configuration=ShowdownServerConfiguration,
-        )
-        # Sending challenges to 'your_username'
-        #await player.send_challenges("your_username", n_challenges=1)
-
-        # Accepting one challenge from any user
-        #await player.accept_challenges(None, 1)
-
-        # Accepting three challenges from 'your_username'
-        #await player.accept_challenges('your_username', 3)
-
-        # Playing 5 games on the ladder
-        
-        await player.ladder(5)
-
-
-        # Print the rating of the player and its opponent after each battle
-        for battle in player.battles.values():
-            print(battle.rating, battle.opponent_rating)
-
-    asyncio.get_event_loop().run_until_complete(main())
     print("Won", env_player.n_won_battles, "battles against", env_player._opponent)

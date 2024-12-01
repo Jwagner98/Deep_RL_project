@@ -172,7 +172,7 @@ def a2c_evaluation(player, nb_episodes):
     )
 
 
-NB_TRAINING_STEPS = 10_000
+NB_TRAINING_STEPS = 10
 TEST_EPISODES = 100
 GEN_9_DATA = GenData.from_gen(9)
 
@@ -184,9 +184,9 @@ if __name__ == "__main__":
     third_op=SimpleHeuristicsPlayer()
     model = A2C("MlpPolicy", env_player, verbose=1)
     model.learn(NB_TRAINING_STEPS)
-    model.env._opponent=second_opponent
+    model.env(opponent=opponent)
     model.learn(NB_TRAINING_STEPS)
-    model.env._opponent=third_op
+    model.env(opponent=opponent)
     model.learn(NB_TRAINING_STEPS)
     
     obs, reward, done, _, info = env_player.step(0)

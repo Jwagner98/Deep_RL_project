@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     finished_episodes = 0
     env_player.reset_env(restart=True, opponent=MaxDamagePlayer())
-
+    model.env.reset_env
     while True:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = env_player.step(action)
