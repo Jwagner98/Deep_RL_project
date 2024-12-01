@@ -141,6 +141,10 @@ class Agent(Gen9EnvSinglePlayer):
         obs = self.embed_battle(battle)
         action, _ = self.model.predict(obs, deterministic=True)
         return self.action_to_move(action)
+    
+    def complete_current_episode(self):
+        # Check if all ongoing battles are complete
+        return all(battle.finished for battle in self.battles.values())
 
 
 class MaxDamagePlayer(RandomPlayer):
@@ -165,23 +169,54 @@ NB_TRAINING_STEPS = 1_000
 TEST_EPISODES = 50
 LADDER_EPISODES = 50
 # Training functions
-def a2c_training():
-    opponent = RandomPlayer(battle_format='gen9randombattle')
-    second_opponent = MaxDamagePlayer(battle_format='gen9randombattle')
-    third_opponent = SimpleHeuristicsPlayer(battle_format='gen9randombattle')
-    env_player = Agent(opponent=opponent)
-    check_env(env_player)
-    model = A2C("MlpPolicy", env_player, verbose=1)
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    # model.env._opponent=second_opponent
-    # model.env.reset_env(restart=True, opponent=second_opponent)
-    env_player._opponent = second_opponent
-    model.set_env(env_player)
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    env_player._opponent = third_opponent
-    model.set_env(env_player)
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
+# def a2c_training():
+#     opponent = RandomPlayer(battle_format='gen9randombattle')
+#     second_opponent = MaxDamagePlayer(battle_format='gen9randombattle')
+#     third_opponent = SimpleHeuristicsPlayer(battle_format='gen9randombattle')
+#     env_player = Agent(opponent=opponent)
+#     check_env(env_player)
+#     model = A2C("MlpPolicy", env_player, verbose=1)
+#     model.learn(total_timesteps=NB_TRAINING_STEPS)
+#     # model.env._opponent=second_opponent
+#     # model.env.reset_env(restart=True, opponent=second_opponent)
+#     env_player._opponent = second_opponent
+#     model.set_env(env_player)
+#     model.learn(total_timesteps=NB_TRAINING_STEPS)
+#     env_player._opponent = third_opponent
+#     model.set_env(env_player)
+#     model.learn(total_timesteps=NB_TRAINING_STEPS)
 
+#     model_store['a2c'] = model
+
+def a2c_training():
+    # Initialize opponents
+    opponents = [
+        RandomPlayer(battle_format='gen9randombattle'),
+        MaxDamagePlayer(battle_format='gen9randombattle'),
+        SimpleHeuristicsPlayer(battle_format='gen9randombattle')
+    ]
+
+    # Initialize the environment player with the first opponent
+    env_player = Agent(opponent=opponents[0])
+    check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
+
+    # Create the model
+    model = A2C("MlpPolicy", env_player, verbose=1)
+
+    # Train against each opponent sequentially
+    for i, opponent in enumerate(opponents):
+        print(f"Training against opponent {i + 1}: {type(opponent).__name__}")
+        env_player._opponent = opponent  # Change opponent
+        
+        # Wait for any ongoing episodes to finish
+        while not env_player.complete_current_episode():
+            pass  # Loop until the environment signals completion
+
+        env_player.reset_battles()  # Reset battles cleanly after completion
+        model.set_env(env_player)  # Set the updated environment
+        model.learn(total_timesteps=NB_TRAINING_STEPS)  # Train model
+
+    # Store the trained model
     model_store['a2c'] = model
 
 def dqn_training():
