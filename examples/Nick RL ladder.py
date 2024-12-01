@@ -1,6 +1,7 @@
 import numpy as np
 import asyncio
 from stable_baselines3 import A2C,DQN
+from stable_baselines3.common.env_checker import check_env
 from gymnasium.spaces import Box
 from poke_env.data import GenData
 
@@ -131,10 +132,15 @@ class Agent(Gen9EnvSinglePlayer):
         low = np.concatenate([[-1]*4, [0]*4, [0]*2, [0]*6, [0]*6, [0]*2, [-6]*7, [-6]*7, [0]*11, [0]*11, [0]*13, [0]*9, [0]])
         high = np.concatenate([[3]*4, [4]*4, [1]*2, [1]*6, [1]*6, [1]*2, [6]*7, [6]*7, [MAX_TURNS]*11, [MAX_TURNS]*11, [MAX_TURNS]*13, [MAX_TURNS]*9, [MAX_TURNS]])
         return Box(
-            np.array(low, dtype=np.float32),
-            np.array(high, dtype=np.float32),
-            dtype=np.float32,
+            np.array(low, dtype=np.float64),
+            np.array(high, dtype=np.float64),
+            dtype=np.float64,
         )
+    
+    def choose_move(self, battle):
+        obs = self.embed_battle(battle)
+        action, _ = self.model.predict(obs, deterministic=True)
+        return self.action_to_move(action)
 
 
 class MaxDamagePlayer(RandomPlayer):
@@ -155,22 +161,25 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_TRAINING_STEPS = 10_000
-NB_EVALUATION_EPISODES = 100
-TEST_EPISODES = 100
-LADDER_EPISODES = 100
+NB_TRAINING_STEPS = 55
+TEST_EPISODES = 5
+LADDER_EPISODES = 5
 # Training functions
 def a2c_training():
-    opponent = RandomPlayer()
-    second_opponent = MaxDamagePlayer()
-    third_opponent = SimpleHeuristicsPlayer()
+    opponent = RandomPlayer(battle_format='gen9randombattle')
+    second_opponent = MaxDamagePlayer(battle_format='gen9randombattle')
+    third_opponent = SimpleHeuristicsPlayer(battle_format='gen9randombattle')
     env_player = Agent(opponent=opponent)
-
+    check_env(env_player)
     model = A2C("MlpPolicy", env_player, verbose=1)
     model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=second_opponent
+    # model.env._opponent=second_opponent
+    # model.env.reset_env(restart=True, opponent=second_opponent)
+    env_player._opponent = second_opponent
+    model.set_env(env_player)
     model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=third_opponent
+    env_player._opponent = third_opponent
+    model.set_env(env_player)
     model.learn(total_timesteps=NB_TRAINING_STEPS)
 
     model_store['a2c'] = model
@@ -193,12 +202,11 @@ def dqn_training():
 # evaluation runner
 def evaluate_policy(model):
     finished_episodes = 0
-
     model.env.reset_battles()
     obs, _ = model.env.reset()
     while True:
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = model.env.step(action)
+        obs, reward, done, _, _ = model.env.step(action)
 
         if done:
             finished_episodes += 1
@@ -211,7 +219,6 @@ def evaluate_policy(model):
 def a2c_evaluation():
     # Reset battle statistics
     model = model_store['a2c']
-    model.env.reset_battles()
     evaluate_policy(model)
 
     print(
@@ -237,6 +244,7 @@ async def a2cladder():
     player = Agent(
         player_configuration=AccountConfiguration(username=klefki.a2cuser, password=klefki.password),
         server_configuration=ShowdownServerConfiguration,
+        start_timer_on_battle_start=True,
     )
 
     model.env = player
@@ -264,8 +272,8 @@ async def dqnladder():
 
 if __name__ == "__main__":
     a2c_training()
-    a2c_evaluation()
+    # a2c_evaluation()
 
-    asyncio.get_event_loop().run_until_complete(a2cladder())
+    # asyncio.get_event_loop().run_until_complete(a2cladder())
     
     
