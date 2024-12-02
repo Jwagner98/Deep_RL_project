@@ -12,7 +12,7 @@ from poke_env.player import Gen9EnvSinglePlayer, RandomPlayer, SimpleHeuristicsP
 from poke_env import AccountConfiguration, ShowdownServerConfiguration
 from poke_env.player.battle_order import BattleOrder, ForfeitBattleOrder
 GEN_9_DATA = GenData.from_gen(9)
-class OnlineAgent(Player):
+class Agentbaseline(Player):
     def __init__(self, model, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model = model
@@ -118,7 +118,7 @@ class OnlineAgent(Player):
     
 async def main():
     # We create a random player
-    player = OnlineAgent(model=DQN.load("dqn_model_30k"),
+    player = Agentbaseline(model=DQN.load("dqn_model_30k"),
         account_configuration=AccountConfiguration("RL_baseline", "Wagner777"),
         server_configuration=ShowdownServerConfiguration,
     )
