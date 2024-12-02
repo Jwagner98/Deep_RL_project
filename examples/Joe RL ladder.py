@@ -349,8 +349,8 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_RANDOM_TRAINING_STEPS = 20_000
-NB_ADV_TRAINING_STEPS = 5_000
+NB_RANDOM_TRAINING_STEPS = 30_000
+NB_ADV_TRAINING_STEPS = 50_000
 TEST_EPISODES = 100
 LADDER_EPISODES = 500
 # Training functions
@@ -363,6 +363,7 @@ def a2c_training():
     ]
 
     # Initialize the environment player with the first opponent
+    opponent=opponents[0]
     env_player = Agent(opponent=opponents[0])
     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
 
@@ -370,22 +371,22 @@ def a2c_training():
     model = A2C("MlpPolicy", env_player, verbose=1)
 
     # Train against each opponent sequentially
-    for i, opponent in enumerate(opponents):
-        print(f"Training against opponent {i + 1}: {type(opponent).__name__}")
-        
-        # Update opponent in the environment
-        env_player._opponent = opponent
+    i=0
+    print(f"Training against opponent {i + 1}: {type(opponent).__name__}")
+    
+    # Update opponent in the environment
+    env_player._opponent = opponent
 
-        # Attach the callback for automatic environment resetting
-        callback = TrainingMonitorCallback(env_player)
+    # Attach the callback for automatic environment resetting
+    callback = TrainingMonitorCallback(env_player)
 
-        if i>0: NB_TRAINING_STEPS = NB_ADV_TRAINING_STEPS
-        else: NB_TRAINING_STEPS = NB_RANDOM_TRAINING_STEPS
+    if i>0: NB_TRAINING_STEPS = NB_ADV_TRAINING_STEPS
+    else: NB_TRAINING_STEPS = NB_RANDOM_TRAINING_STEPS
 
-        # Train the model with the current opponent
-        model.set_env(env_player)
-        model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
-
+    # Train the model with the current opponent
+    model.set_env(env_player)
+    model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+    model.save()
     # Store the trained model
     model_store['a2c'] = model
 
@@ -549,12 +550,12 @@ async def dqnladder():
 
 
 if __name__ == "__main__":
-    a2c_training()
-    model = model_store['a2c']
-
+    #a2c_training()
+    #model = model_store['a2c']
+    model=A2C.load("a2c_model")
     opponent = RandomPlayer()
-    second_opponent = MaxDamagePlayer()
-    third_opponent = SimpleHeuristicsPlayer()
+    opponent = MaxDamagePlayer()
+    opponent = SimpleHeuristicsPlayer()
     env_player = Agent(opponent=opponent)
     obs, reward, done, _, info = env_player.step(0)
     while not done:
@@ -573,41 +574,10 @@ if __name__ == "__main__":
             finished_episodes += 1
             obs, _ = env_player.reset()
             if finished_episodes >= TEST_EPISODES:
-
                 break
 
     print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
 
-    finished_episodes = 0
-    env_player._opponent = second_opponent
-
-    obs, _ = env_player.reset()
-    while True:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env_player.step(action)
-
-        if done:
-            finished_episodes += 1
-            obs, _ = env_player.reset()
-            if finished_episodes >= TEST_EPISODES:
-                break
-
-    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
-    finished_episodes = 0
-    env_player._opponent = third_opponent
-
-    obs, _ = env_player.reset()
-    while True:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env_player.step(action)
-
-        if done:
-            finished_episodes += 1
-            obs, _ = env_player.reset()
-            if finished_episodes >= TEST_EPISODES:
-                break
-
-    print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
     #a2c_evaluation()
 
     #dqn_training()

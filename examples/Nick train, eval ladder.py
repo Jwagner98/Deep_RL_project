@@ -343,7 +343,7 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_TRAINING_STEPS = 1_000
+NB_TRAINING_STEPS = 20_000
 TEST_EPISODES = 50
 LADDER_EPISODES = 5
 # Training functions

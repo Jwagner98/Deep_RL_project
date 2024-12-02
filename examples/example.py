@@ -97,7 +97,7 @@ def a2c_evaluation(player, nb_episodes):
     )
 
 
-NB_TRAINING_STEPS = 10_0000
+NB_TRAINING_STEPS = 10_0
 TEST_EPISODES = 100
 NB_EVALUATION_EPISODES = TEST_EPISODES
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     
 
     finished_episodes = 0
-    env_player.reset_env(restart=True, opponent=MaxDamagePlayer())
+    env_player.reset_env(restart=True, opponent=SimpleHeuristicsPlayer())
     model.env.reset_env
     while True:
         action, _ = model.predict(obs, deterministic=True)
