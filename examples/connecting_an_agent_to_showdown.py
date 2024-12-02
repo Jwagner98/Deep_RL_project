@@ -122,7 +122,7 @@ async def main():
         account_configuration=AccountConfiguration("RL_baseline", "Wagner777"),
         server_configuration=ShowdownServerConfiguration,
     )
-
+    #player = SimpleHeuristicsPlayer(account_configuration=AccountConfiguration("RL_baseline", "Wagner777"),server_configuration=ShowdownServerConfiguration)
     # Sending challenges to 'your_username'
     #await player.send_challenges("Joe_wag_RL", n_challenges=1)
 

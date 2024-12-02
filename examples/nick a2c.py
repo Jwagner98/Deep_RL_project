@@ -106,9 +106,9 @@ if __name__ == "__main__":
     #second_opponent = MaxDamagePlayer()
     env_player = SimpleRLPlayer(opponent=opponent)
 
-    model = A2C("MlpPolicy", env_player, verbose=1)
+    model = DQN("MlpPolicy", env_player, verbose=1)
     model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.save("a2c_model_30k")
+    model.save("dqn_model_30k")
     obs, reward, done, _, info = env_player.step(0)
     while not done:
         action, _ = model.predict(obs, deterministic=True)
