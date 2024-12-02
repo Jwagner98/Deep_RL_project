@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import asyncio
 from stable_baselines3 import A2C,DQN
 from stable_baselines3.common.env_checker import check_env
@@ -12,6 +13,7 @@ from poke_env import AccountConfiguration, ShowdownServerConfiguration
 from poke_env.player.battle_order import BattleOrder, ForfeitBattleOrder
 
 import klefki
+import tqdm
 
 class TrainingMonitorCallback(BaseCallback):
     def __init__(self, env_player, verbose=0):
@@ -343,11 +345,12 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_TRAINING_STEPS = 20_000
-TEST_EPISODES = 50
+NB_TRAINING_STEPS = 10_000
+# NB_TRAINING_STEPS = 2_000_000
+TEST_EPISODES = 100
 LADDER_EPISODES = 5
 # Training functions
-def a2c_training():
+def a2c_training(eps=NB_TRAINING_STEPS):
     # Define opponents for sequential training
     opponents = [
         RandomPlayer(battle_format='gen9randombattle'),
@@ -374,28 +377,47 @@ def a2c_training():
 
         # Train the model with the current opponent
         model.set_env(env_player)
-        model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+        model.learn(total_timesteps=eps, callback=callback)
 
     # Store the trained model
     model_store['a2c'] = model
+    model.save(f'A2C_model_{eps}')
 
 
-def dqn_training():
-    opponent = RandomPlayer()
-    second_opponent = MaxDamagePlayer()
-    third_opponent = SimpleHeuristicsPlayer()
-    env_player = Agent(opponent=opponent)
+def dqn_training(eps=NB_TRAINING_STEPS):
+    # Define opponents for sequential training
+    opponents = [
+        RandomPlayer(battle_format='gen9randombattle'),
+        MaxDamagePlayer(battle_format='gen9randombattle'),
+        SimpleHeuristicsPlayer(battle_format='gen9randombattle')
+    ]
 
+    # Initialize the environment player with the first opponent
+    env_player = Agent(opponent=opponents[0])
+    check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
+
+    # Initialize the A2C model
     model = DQN("MlpPolicy", env_player, verbose=1)
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=second_opponent
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
-    model.env._opponent=third_opponent
-    model.learn(total_timesteps=NB_TRAINING_STEPS)
 
+    # Train against each opponent sequentially
+    for i, opponent in enumerate(opponents):
+        print(f"Training against opponent {i + 1}: {type(opponent).__name__}")
+        
+        # Update opponent in the environment
+        env_player._opponent = opponent
+
+        # Attach the callback for automatic environment resetting
+        callback = TrainingMonitorCallback(env_player)
+
+        # Train the model with the current opponent
+        model.set_env(env_player)
+        model.learn(total_timesteps=eps, callback=callback)
+
+    # Store the trained model
     model_store['dqn'] = model
-
-# evaluation runner
+    model.save(f'DQN_model_{eps}')
+    
+# evaluation functions
 def evaluate_policy(model):
     opponents = [
         RandomPlayer(battle_format='gen9randombattle'),
@@ -403,44 +425,106 @@ def evaluate_policy(model):
         SimpleHeuristicsPlayer(battle_format='gen9randombattle'),
     ]
     results = {}
+
     for opponent in opponents:
+        print(f"Evaluating against {type(opponent).__name__}")
         env_player = Agent(opponent=opponent)
         env_player.reset_battles()
         model.set_env(env_player)
-
+        
         finished_episodes = 0
-        obs, _ = env_player.reset()
-
-        while finished_episodes < TEST_EPISODES:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, _, _ = env_player.step(action)
-
-            if done:
-                finished_episodes += 1
-                if finished_episodes < TEST_EPISODES:
-                    obs, _ = env_player.reset()
+        total_rewards = 0
+        
+        for _ in tqdm.tqdm(range(TEST_EPISODES)):
+            obs, _ = env_player.reset()  # Reset the environment at the start of each episode
+            done = False
+            
+            while not done:
+                try:
+                    action, _ = model.predict(obs, deterministic=True)
+                    obs, reward, done, _, _ = env_player.step(action)
+                    total_rewards += reward
+                except RuntimeError as e:
+                    print(f"Error: {e}")
+                    done = True  # Force end of episode if a battle-related error occurs
+            
+            finished_episodes += 1
+            # print(f"Episode {finished_episodes} completed")
+        
+        # Record the results after finishing all episodes with the current opponent
         results[type(opponent).__name__] = env_player.n_won_battles
-        print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
-# evaluation functions
-def a2c_evaluation():
-    # Reset battle statistics
-    model = model_store['a2c']
-    results = evaluate_policy(model)
-    if results is not None:
-        print('A2C Evaluation Results:')
-        for opponent, victories in results.items():
-            print(f'{opponent}: {victories}/{TEST_EPISODES} wins')
+        print(f"Won {env_player.n_won_battles} battles against {type(opponent).__name__}")
+    
+    # Display evaluation results
+    print("Evaluation Results:")
+    for opponent_name, wins in results.items():
+        print(f"{opponent_name}: {wins}/{TEST_EPISODES} wins")
+    
+    return results
 
-def dqn_evaluation():
-    # Reset battle statistics
-    model = model_store['dqn']
-    model.env.reset_battles()
-    evaluate_policy(model)
+def a2c_evaluation(csv=True):
+    results_list = []
+    
+    # List of timesteps to evaluate
+    timesteps = [20000, 50000, 100000, 250000, 1_000_000, 2_000_000]
+    
+    for ts in timesteps:
+        print(f"Evaluating model trained for {ts} timesteps...")
+        
+        # Load the model for the specific timestep
+        model = A2C.load(f'A2C_model_{ts}')
+        
+        # Evaluate the policy against the opponents
+        results = evaluate_policy(model)
+        
+        # Store results in a list
+        if results:
+            for opponent, victories in results.items():
+                results_list.append({"timestep": ts, "opponent": opponent, "wins": victories})
+    
+    # Convert results to a DataFrame
+    results_df = pd.DataFrame(results_list)
+        
+    if csv:
+        # Save DataFrame to a CSV file
+        results_df.to_csv('a2c_evaluation_results.csv', index=False)
+        print("Results saved to 'a2c_evaluation_results.csv'.")
 
-    print(
-        "DQN Evaluation: %d victories out of %d episodes"
-        % (model.env.n_won_battles, TEST_EPISODES)
-    )
+    # Display the results for quick verification
+    print("Results a2c")
+    print(results_df)
+
+def dqn_evaluation(csv=True):
+    results_list = []
+    
+    # List of timesteps to evaluate
+    timesteps = [20000, 50000, 100000, 250000, 500000]
+    
+    for ts in timesteps:
+        print(f"Evaluating model trained for {ts} timesteps...")
+        
+        # Load the model for the specific timestep
+        model = DQN.load(f'DQN_model_{ts}')
+        
+        # Evaluate the policy against the opponents
+        results = evaluate_policy(model)
+        
+        # Store results in a list
+        if results:
+            for opponent, victories in results.items():
+                results_list.append({"timestep": ts, "opponent": opponent, "wins": victories})
+    
+    # Convert results to a DataFrame
+    results_df = pd.DataFrame(results_list)
+        
+    if csv:
+        # Save DataFrame to a CSV file
+        results_df.to_csv('dqn_evaluation_results.csv', index=False)
+        print("Results saved to 'dqn_evaluation_results.csv'.")
+
+    # Display the results for quick verification
+    print("Results dqn")
+    print(results_df)
 
 # play online
 async def a2cladder():
@@ -476,7 +560,14 @@ async def dqnladder():
 
 
 if __name__ == "__main__":
-    a2c_training()
-    a2c_evaluation()
+    a2c_training(2_000_000)
+    a2c_training(1_000_000)
+    dqn_training(500000)
 
-    asyncio.get_event_loop().run_until_complete(a2cladder())
+    # a2c_training(5000)
+    # dqn_training(5000)
+
+    a2c_evaluation(csv=False)
+    dqn_evaluation(csv=False)
+
+    # asyncio.get_event_loop().run_until_complete(a2cladder())
