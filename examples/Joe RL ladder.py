@@ -349,26 +349,19 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_RANDOM_TRAINING_STEPS = 30_000
-NB_ADV_TRAINING_STEPS = 50_000
+NB_RANDOM_TRAINING_STEPS = 50_000
 TEST_EPISODES = 100
 LADDER_EPISODES = 500
 # Training functions
 def a2c_training():
     # Define opponents for sequential training
-    opponents = [
-        RandomPlayer(),
-        MaxDamagePlayer(),
-        SimpleHeuristicsPlayer()
-    ]
+    opponent =RandomPlayer()
 
-    # Initialize the environment player with the first opponent
-    opponent=opponents[0]
-    env_player = Agent(opponent=opponents[0])
+    env_player = Agent(opponent=opponent)
     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
 
     # Initialize the A2C model
-    model = A2C("MlpPolicy", env_player, verbose=1)
+    model = DQN("MlpPolicy", env_player, verbose=1)
 
     # Train against each opponent sequentially
     i=0
@@ -380,13 +373,10 @@ def a2c_training():
     # Attach the callback for automatic environment resetting
     callback = TrainingMonitorCallback(env_player)
 
-    if i>0: NB_TRAINING_STEPS = NB_ADV_TRAINING_STEPS
-    else: NB_TRAINING_STEPS = NB_RANDOM_TRAINING_STEPS
-
     # Train the model with the current opponent
     model.set_env(env_player)
-    model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
-    model.save()
+    model.learn(total_timesteps=NB_RANDOM_TRAINING_STEPS, callback=callback)
+    model.save("dqn_model_5")
     # Store the trained model
     model_store['a2c'] = model
 
@@ -552,10 +542,10 @@ async def dqnladder():
 if __name__ == "__main__":
     #a2c_training()
     #model = model_store['a2c']
-    model=A2C.load("a2c_model")
+    model=DQN.load("dqn_model_5")
     opponent = RandomPlayer()
     opponent = MaxDamagePlayer()
-    opponent = SimpleHeuristicsPlayer()
+    #opponent = SimpleHeuristicsPlayer()
     env_player = Agent(opponent=opponent)
     obs, reward, done, _, info = env_player.step(0)
     while not done:

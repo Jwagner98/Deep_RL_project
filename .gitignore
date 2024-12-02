@@ -2,3 +2,7 @@
 examples/klefki.py
 examples/__pycache__/klefki.cpython-39.pyc
 a2c_model.zip
+dqn_model_3.zip
+a2c_model_1.zip
+a2c_model_3.zip
+.gitignore

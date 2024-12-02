@@ -1,5 +1,5 @@
 import numpy as np
-from stable_baselines3 import A2C
+from stable_baselines3 import A2C,DQN
 from gymnasium.spaces import Box
 from poke_env.data import GenData
 
@@ -96,7 +96,7 @@ def a2c_evaluation(player, nb_episodes):
     )
 
 
-NB_TRAINING_STEPS = 20000
+NB_TRAINING_STEPS = 50_000
 TEST_EPISODES = 100
 GEN_9_DATA = GenData.from_gen(9)
 
@@ -107,9 +107,9 @@ if __name__ == "__main__":
 
     env_player = SimpleRLPlayer(opponent=opponent)
 
-    model = A2C("MlpPolicy", env_player, verbose=1)
+    model = DQN("MlpPolicy", env_player, verbose=1)
     model.learn(total_timesteps=NB_TRAINING_STEPS)
-
+    
     obs, reward, done, _, info = env_player.step(0)
     while not done:
         action, _ = model.predict(obs, deterministic=True)
