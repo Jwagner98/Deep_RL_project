@@ -296,10 +296,9 @@ async def main():
         account_configuration=AccountConfiguration("Simple_heuristics", "Wagner"),
         server_configuration=ShowdownServerConfiguration,
     )
-    #mode
-    RL_player1 = OnlineAgent(
-        account_configuration=AccountConfiguration("Agent_ego", "RLclass"),
-        server_configuration=ShowdownServerConfiguration,model=DQN.load("DQN_model_250000"),
+    RL_player1 = OnlineAgent(model=DQN.load("DQN_model_250000"),
+        account_configuration=AccountConfiguration("Agent_id", "RLclass"),
+        server_configuration=ShowdownServerConfiguration,
     )
     RL_player2 = Agentbaseline(model=DQN.load("dqn_model_30k"),
         account_configuration=AccountConfiguration("RL_baseline", "Wagner777"),
