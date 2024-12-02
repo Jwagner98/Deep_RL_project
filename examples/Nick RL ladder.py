@@ -351,22 +351,59 @@ from typing import Dict
 model_store: Dict[str, BaseAlgorithm] = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_RANDOM_TRAINING_STEPS = 1_000
-NB_ADV_TRAINING_STEPS = 500
+NB_RANDOM_TRAINING_STEPS = 10_000
+NB_ADV_TRAINING_STEPS = 5000
 TEST_EPISODES = 100
 LADDER_EPISODES = 500
 
-opponents = [
-        RandomPlayer(battle_format='gen9randombattle'),
-        MaxDamagePlayer(battle_format='gen9randombattle'),
-        SimpleHeuristicsPlayer(battle_format='gen9randomebattle'),
-    ]
-names = ['RandomPlayer', 'MaxDamagePlayer', 'SimpleHeuristicsPlayer']
 # for i, opponent in enumerate(opponents):
 #     opponent.__name__ = names[i]
 
 # Training functions
+# def a2c_training():
+#     # Initialize the environment player with the first opponent
+#     env_player = Agent(opponent=opponents[0])
+#     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
+
+#     # Initialize the A2C model
+#     model = A2C("MlpPolicy", env_player, verbose=2)
+
+#     # Train against each opponent sequentially
+#     for i, opponent in enumerate(opponents):
+#         print(f"Training against opponent {i + 1}: {names[i]}")
+        
+#         # Update opponent in the environment
+#         env_player._opponent = opponent
+
+#         # Attach the callback for automatic environment resetting
+#         callback = TrainingMonitorCallback(env_player)
+
+#         if i>0: NB_TRAINING_STEPS = NB_ADV_TRAINING_STEPS
+#         else: NB_TRAINING_STEPS = NB_RANDOM_TRAINING_STEPS
+
+#         # Train the model with the current opponent
+#         model.set_env(env_player)
+#         try:
+#             model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+#         except Exception as e:
+#             print(f"Error occurred during training: {e}")
+
+#     # Store the trained model
+#     # model_store['a2c'] = model
+#     model.save('A2C_model')
+
 def a2c_training():
+    """
+    Train the agent using A2C sequentially against each opponent.
+    """
+    print("Starting A2C training...")
+    opponents = [
+        RandomPlayer(battle_format='gen9randombattle'),
+        MaxDamagePlayer(battle_format='gen9randombattle'),
+        SimpleHeuristicsPlayer(battle_format='gen9randomebattle'),
+    ]
+    names = ['RandomPlayer', 'MaxDamagePlayer', 'SimpleHeuristicsPlayer']
+
     # Initialize the environment player with the first opponent
     env_player = Agent(opponent=opponents[0])
     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
@@ -377,23 +414,31 @@ def a2c_training():
     # Train against each opponent sequentially
     for i, opponent in enumerate(opponents):
         print(f"Training against opponent {i + 1}: {names[i]}")
-        
+
         # Update opponent in the environment
-        env_player._opponent = opponent
+        # env_player._opponent = opponent
+        env_player.reset_env(opponent)
+
+        # Determine the number of training steps
+        training_steps = NB_ADV_TRAINING_STEPS if i > 0 else NB_RANDOM_TRAINING_STEPS
 
         # Attach the callback for automatic environment resetting
         callback = TrainingMonitorCallback(env_player)
 
-        if i>0: NB_TRAINING_STEPS = NB_ADV_TRAINING_STEPS
-        else: NB_TRAINING_STEPS = NB_RANDOM_TRAINING_STEPS
-
         # Train the model with the current opponent
         model.set_env(env_player)
-        model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+        model.learn(total_timesteps=training_steps, callback=callback)
 
-    # Store the trained model
-    # model_store['a2c'] = model
-    model.save('A2C_model')
+        print(f"Completed training against {names[i]}.")
+
+    # # Quitters training
+    # callback = TrainingMonitorCallback(env_player)
+    # model.learn(total_timesteps=NB_RANDOM_TRAINING_STEPS, callback=callback)
+
+    # Save the trained model
+    model.save("A2C_model")
+    print("A2C training completed and model saved.")
+
 
 
 def dqn_training():
@@ -427,6 +472,12 @@ def dqn_training():
 # evaluation runner
 def evaluate_policy(model):
     print('Model Evaluation...')
+    opponents = [
+        RandomPlayer(battle_format='gen9randombattle'),
+        MaxDamagePlayer(battle_format='gen9randombattle'),
+        SimpleHeuristicsPlayer(battle_format='gen9randomebattle'),
+    ]
+    names = ['RandomPlayer', 'MaxDamagePlayer', 'SimpleHeuristicsPlayer']
     results = {}
     for i, opponent in enumerate(opponents):
         env_player = Agent(opponent=opponent)
@@ -437,7 +488,7 @@ def evaluate_policy(model):
 
         finished_episodes = 0
         obs, _ = env_player.reset()
-        print('Battle innit')
+        print('Battle init')
         # obs, _, done, _, _ = env_player.step(0)
         while finished_episodes < TEST_EPISODES:
             action, _ = model.predict(obs, deterministic=True)
@@ -459,7 +510,6 @@ def evaluate_policy(model):
 def a2c_evaluation():
     # Reset battle statistics
     model = A2C.load('A2C_model')
-    model.test
     results = evaluate_policy(model)
     if results is not None:
         print('A2C Evaluation Results:')
