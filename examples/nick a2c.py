@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
     model = A2C("MlpPolicy", env_player, verbose=1)
     model.learn(total_timesteps=NB_TRAINING_STEPS)
-    
+    model.save("a2c_model_30k")
     obs, reward, done, _, info = env_player.step(0)
     while not done:
         action, _ = model.predict(obs, deterministic=True)
