@@ -191,7 +191,7 @@ async def main():
     # We create a random player
     player = OnlineAgent(
         account_configuration=AccountConfiguration("RL_baseline", "Wagner777"),
-        server_configuration=ShowdownServerConfiguration,model=A2C.load("a2c_model_3"),
+        server_configuration=ShowdownServerConfiguration,model=A2C.load("dqn_model_3"),
     )
     # Sending challenges to 'your_username'
     #await player.send_challenges("Joe_wag_RL", n_challenges=1)
