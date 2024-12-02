@@ -345,11 +345,12 @@ np.random.seed(0)
 model_store = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_TRAINING_STEPS = 250_000
+NB_TRAINING_STEPS = 10_000
+# NB_TRAINING_STEPS = 2_000_000
 TEST_EPISODES = 100
 LADDER_EPISODES = 5
 # Training functions
-def a2c_training():
+def a2c_training(eps=NB_TRAINING_STEPS):
     # Define opponents for sequential training
     opponents = [
         RandomPlayer(battle_format='gen9randombattle'),
@@ -376,14 +377,14 @@ def a2c_training():
 
         # Train the model with the current opponent
         model.set_env(env_player)
-        model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+        model.learn(total_timesteps=eps, callback=callback)
 
     # Store the trained model
     model_store['a2c'] = model
-    model.save(f'A2C_model_{NB_TRAINING_STEPS}')
+    model.save(f'A2C_model_{eps}')
 
 
-def dqn_training():
+def dqn_training(eps=NB_TRAINING_STEPS):
     # Define opponents for sequential training
     opponents = [
         RandomPlayer(battle_format='gen9randombattle'),
@@ -410,11 +411,11 @@ def dqn_training():
 
         # Train the model with the current opponent
         model.set_env(env_player)
-        model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+        model.learn(total_timesteps=eps, callback=callback)
 
     # Store the trained model
     model_store['dqn'] = model
-    model.save(f'DQN_model_{NB_TRAINING_STEPS}')
+    model.save(f'DQN_model_{eps}')
     
 # evaluation functions
 def evaluate_policy(model):
@@ -461,11 +462,11 @@ def evaluate_policy(model):
     
     return results
 
-def a2c_evaluation():
+def a2c_evaluation(csv=True):
     results_list = []
     
     # List of timesteps to evaluate
-    timesteps = [20000, 50000, 100000, 250000]
+    timesteps = [20000, 50000, 100000, 250000, 1_000_000, 2_000_000]
     
     for ts in timesteps:
         print(f"Evaluating model trained for {ts} timesteps...")
@@ -483,19 +484,21 @@ def a2c_evaluation():
     
     # Convert results to a DataFrame
     results_df = pd.DataFrame(results_list)
-    
-    # Save DataFrame to a CSV file
-    results_df.to_csv('a2c_evaluation_results.csv', index=False)
-    print("Results saved to 'a2c_evaluation_results.csv'.")
+        
+    if csv:
+        # Save DataFrame to a CSV file
+        results_df.to_csv('a2c_evaluation_results.csv', index=False)
+        print("Results saved to 'a2c_evaluation_results.csv'.")
 
     # Display the results for quick verification
+    print("Results a2c")
     print(results_df)
 
-def dqn_evaluation():
+def dqn_evaluation(csv=True):
     results_list = []
     
     # List of timesteps to evaluate
-    timesteps = [20000, 50000, 100000, 250000]
+    timesteps = [20000, 50000, 100000, 250000, 500000]
     
     for ts in timesteps:
         print(f"Evaluating model trained for {ts} timesteps...")
@@ -513,12 +516,14 @@ def dqn_evaluation():
     
     # Convert results to a DataFrame
     results_df = pd.DataFrame(results_list)
-    
-    # Save DataFrame to a CSV file
-    results_df.to_csv('dqn_evaluation_results.csv', index=False)
-    print("Results saved to 'dqn_evaluation_results.csv'.")
+        
+    if csv:
+        # Save DataFrame to a CSV file
+        results_df.to_csv('dqn_evaluation_results.csv', index=False)
+        print("Results saved to 'dqn_evaluation_results.csv'.")
 
     # Display the results for quick verification
+    print("Results dqn")
     print(results_df)
 
 # play online
@@ -555,10 +560,14 @@ async def dqnladder():
 
 
 if __name__ == "__main__":
-    # a2c_training()
-    # dqn_training()
+    a2c_training(2_000_000)
+    a2c_training(1_000_000)
+    dqn_training(500000)
 
-    a2c_evaluation()
-    dqn_evaluation()
+    # a2c_training(5000)
+    # dqn_training(5000)
+
+    a2c_evaluation(csv=False)
+    dqn_evaluation(csv=False)
 
     # asyncio.get_event_loop().run_until_complete(a2cladder())
