@@ -3,6 +3,7 @@ import asyncio
 from stable_baselines3 import A2C,DQN
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.base_class import BaseAlgorithm
 from gymnasium.spaces import Box
 
 from poke_env.data import GenData
@@ -15,6 +16,7 @@ import klefki
 
 import time
 import random
+from tqdm import tqdm
 
 random.seed(389)
 
@@ -345,23 +347,26 @@ class MaxDamagePlayer(RandomPlayer):
 
 
 np.random.seed(0)
-
-model_store = {}
+from typing import Dict
+model_store: Dict[str, BaseAlgorithm] = {}
 
 GEN_9_DATA = GenData.from_gen(9)
-NB_RANDOM_TRAINING_STEPS = 20_000
-NB_ADV_TRAINING_STEPS = 5000
+NB_RANDOM_TRAINING_STEPS = 1_000
+NB_ADV_TRAINING_STEPS = 500
 TEST_EPISODES = 100
 LADDER_EPISODES = 500
-# Training functions
-def a2c_training():
-    # Define opponents for sequential training
-    opponents = [
+
+opponents = [
         RandomPlayer(battle_format='gen9randombattle'),
         MaxDamagePlayer(battle_format='gen9randombattle'),
-        SimpleHeuristicsPlayer(battle_format='gen9randombattle')
+        SimpleHeuristicsPlayer(battle_format='gen9randomebattle'),
     ]
+names = ['RandomPlayer', 'MaxDamagePlayer', 'SimpleHeuristicsPlayer']
+# for i, opponent in enumerate(opponents):
+#     opponent.__name__ = names[i]
 
+# Training functions
+def a2c_training():
     # Initialize the environment player with the first opponent
     env_player = Agent(opponent=opponents[0])
     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
@@ -371,7 +376,7 @@ def a2c_training():
 
     # Train against each opponent sequentially
     for i, opponent in enumerate(opponents):
-        print(f"Training against opponent {i + 1}: {type(opponent).__name__}")
+        print(f"Training against opponent {i + 1}: {names[i]}")
         
         # Update opponent in the environment
         env_player._opponent = opponent
@@ -387,17 +392,11 @@ def a2c_training():
         model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
 
     # Store the trained model
-    model_store['a2c'] = model
+    # model_store['a2c'] = model
+    model.save('A2C_model')
 
 
 def dqn_training():
-    # Define opponents for sequential training
-    opponents = [
-        RandomPlayer(battle_format='gen9randombattle'),
-        MaxDamagePlayer(battle_format='gen9randombattle'),
-        SimpleHeuristicsPlayer(battle_format='gen9randombattle')
-    ]
-
     # Initialize the environment player with the first opponent
     env_player = Agent(opponent=opponents[0])
     check_env(env_player)  # Ensure the environment complies with OpenAI Gym standards
@@ -421,47 +420,51 @@ def dqn_training():
         # Train the model with the current opponent
         model.set_env(env_player)
         model.learn(total_timesteps=NB_TRAINING_STEPS, callback=callback)
+        env_player.reset_battles()
 
     # Store the trained model
     model_store['dqn'] = model
-
 # evaluation runner
 def evaluate_policy(model):
-    opponents = [
-        RandomPlayer(battle_format='gen9randombattle'),
-        MaxDamagePlayer(battle_format='gen9randombattle'),
-        SimpleHeuristicsPlayer(battle_format='gen9randombattle'),
-    ]
+    print('Model Evaluation...')
     results = {}
-    for opponent in opponents:
+    for i, opponent in enumerate(opponents):
         env_player = Agent(opponent=opponent)
-        env_player.reset_battles()
+        # env_player._opponent = opponent
+        print(f'\t{names[i]}')
         model.set_env(env_player)
+        print('Environment Set')
 
         finished_episodes = 0
         obs, _ = env_player.reset()
-
-        while True:
+        print('Battle innit')
+        # obs, _, done, _, _ = env_player.step(0)
+        while finished_episodes < TEST_EPISODES:
             action, _ = model.predict(obs, deterministic=True)
+            print(f'pred {action}')
             obs, _, done, _, _ = env_player.step(action)
+            print(f'step {action},{done}')
 
             if done:
                 finished_episodes += 1
+                print(f'Battle {finished_episodes} complete')
                 obs, _ = env_player.reset()
-                if finished_episodes >= TEST_EPISODES:
-                    break
-        results[type(opponent).__name__] = env_player.n_won_battles
-        print("Won", env_player.n_won_battles, "battles against", env_player._opponent)
+                print(f'Environment Reset')
+        results[names[i]] = env_player.n_won_battles
+        print(f"Won {env_player.n_won_battles}/{TEST_EPISODES} battles against {names[i]}")
+        env_player.reset_env()
+    model.save('A2C_model')
+    # return results
 # evaluation functions
 def a2c_evaluation():
     # Reset battle statistics
-    model = model_store['a2c']
+    model = A2C.load('A2C_model')
+    model.test
     results = evaluate_policy(model)
     if results is not None:
         print('A2C Evaluation Results:')
         for opponent, victories in results.items():
-            print(f'{opponent}: {victories}/{TEST_EPISODES} wins')
-    model.save('A2C_model')
+            print(f'Agent vs {opponent}: {victories}/{TEST_EPISODES} wins')
 
 def dqn_evaluation():
     # Reset battle statistics
@@ -511,8 +514,4 @@ if __name__ == "__main__":
     a2c_training()
     a2c_evaluation()
 
-    # dqn_training()
-    # dqn_evaluation()
-
     # asyncio.get_event_loop().run_until_complete(a2cladder())
-    # asyncio.get_event_loop().run_until_complete(dqnladder())
