@@ -124,7 +124,7 @@ class Agent(Gen9EnvSinglePlayer):
         # turn
         turn = battle.turn
 
-        # Final vector with 10 components
+        # Final vector with 83 components
         return np.concatenate(
             [
                 moves_base_power, # 4* -1,3
