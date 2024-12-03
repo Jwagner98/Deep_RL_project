@@ -311,9 +311,9 @@ async def main():
 
     # Accepting one challenge from any user
     #await player.accept_challenges(None, 1)
-    #await RL_player1.accept_challenges(None, 10)
+    await RL_player1.accept_challenges(None, 10)
     #await RL_player2.accept_challenges(None, 10)
-    await heuristic_player.accept_challenges(None, 10)
+    #await heuristic_player.accept_challenges(None, 10)
     # Accepting three challenges from 'your_username'
     # await player.accept_challenges('your_username', 3)
 
