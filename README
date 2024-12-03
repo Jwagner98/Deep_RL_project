@@ -4,10 +4,12 @@ written by hsahovic
 https://github.com/hsahovic/poke-env.git 
 and smogon
 https://github.com/smogon/pokemon-showdown.git
+and using RL alg's in
+https://stable-baselines3.readthedocs.io/en/master/
 
 In order to run the main files in the GIT you must follow the following tutorial 
 https://poke-env.readthedocs.io/en/stable/getting_started.html#installing-poke-env
-note that this totorial took us a week to set up as you must run your own online server in Node to with the utlization of smogon's code, However if you are familiar with this process these steps will setup and run  server
+note that this totorial took us a week to set up as you must run your own online server in Node to with the utlization of smogon's code, However if you are familiar with this process these steps will setup and run server via
 
 git clone https://github.com/smogon/pokemon-showdown.git
 cd pokemon-showdown
@@ -15,7 +17,7 @@ npm install
 cp config/config-example.js config/config.js
 node pokemon-showdown start --no-security
 
-Then to run our baseline which we will compair our code simply run, 
+Then to run our Baseline.py which we will compair our code simply run, 
 Baseline.py
 
 To test each indivuial algorthium that we wrote run 
